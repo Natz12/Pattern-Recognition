@@ -45,15 +45,16 @@ df_wine.rename(columns = {0:'truth'})
 df_wine
 
 
+
 class Tree:
   def __init__(self, feature = None, threshold = None, leaf = None, prediction = None, left = None, right = None, leaves = None):
     self.feature = feature
     self.is_feature_categorical = False
     self.threshold = None
     self.is_leaf = True
-    self.prediction = False
-    self.left = None
-    self.right = None
+    self.prediction = None
+    # self.left = None
+    # self.right = None
     self.leaves = None
 
 
@@ -111,17 +112,17 @@ def train_decision_tree(data,  class_column = 0, features_ignore = [], use_IG = 
   # Test if all samples have the same label and assign the prediction to that label
   if (np.unique(y).shape[0] == 1):
     tree_current.prediction = y[0]
-    tree_current.leaf = True #(I know being True is default, but here it is explicit)
+    tree_current.is_leaf = True #(I know being True is default, but here it is explicit)
   
   # Test if there are features left, if not, assign the most common (mode)
   elif len(features) == 0:
     #https://stackoverflow.com/questions/10797819/finding-the-mode-of-a-list
     tree_current.prediction = max(set(y), key=y.count)
-    tree_current.leaf = True #(I know being True is default, but here it is explicit)
+    tree_current.is_leaf = True #(I know being True is default, but here it is explicit)
   
   # Since everything else has failed, find the next split
   else:
-    tree_current.leaf = False
+    tree_current.is_leaf = False
     
     # Solved using Information Gain. We will study the conditional entropy as 
     # the label entropy is the same for all features at this stage
@@ -146,9 +147,9 @@ def train_decision_tree(data,  class_column = 0, features_ignore = [], use_IG = 
     tree_current.is_feature_categorical = is_categorical
     features_ignore = np.append(features_ignore, feature_best)
 
-    dataLeaves = dataLeaver(data, feature_best, threshold_best)
+    data_splits = data_split(data, feature_best, threshold_best)
     leaves = []
-    for leaf, i in zip(dataLeaves, range(dataLeaves.shape[0])):
+    for leaf, i in zip(data_splits, range(data_splits.shape[0])):
       if verbose:
         print('Leaf number {0:d}'.format(i))
         print('split attribute: ', feature_best)
@@ -162,21 +163,19 @@ def train_decision_tree(data,  class_column = 0, features_ignore = [], use_IG = 
 
     # print("Best feature: ", feature_best,"features_ignore: ", features_ignore, "Creating right tree")
     # tree_current.right = train_decision_tree(data[data[:,feature_best] >= threshold_best], class_column, features_ignore, use_IG)
-  if verbose:
-    print("Tree created")
   return tree_current
 
 
 
-def dataLeaver(dataSamples, bestAttr, bestTresh):
-  if bestTresh is None:
+def data_split(dataSamples, feature, thres):
+  if thres is None:
     dataLeaves = []
-    vals = np.unique((dataSamples)[:, bestAttr])
+    vals = np.unique((dataSamples)[:, feature])
     for val in vals:
-      dataLeaves.append(dataSamples[dataSamples[:, bestAttr] == val])
+      dataLeaves.append(dataSamples[dataSamples[:, feature] == val])
   else:
-    leftData = dataSamples[dataSamples[:, bestAttr] < bestTresh]
-    rightData = dataSamples[dataSamples[:, bestAttr] >= bestTresh]
+    leftData = dataSamples[dataSamples[:, feature] < thres]
+    rightData = dataSamples[dataSamples[:, feature] >= thres]
     dataLeaves = [leftData, rightData]
   dataLeaves = np.asarray(dataLeaves)
   return dataLeaves
@@ -304,6 +303,8 @@ def best_conditional_entropy(data, class_column, features):
           # print("best_cond_ent:{0}, cond_ent:{1}, best_feature:{2}, thres:{3}".
                 # format(best_cond_ent, conditional_ent, best_feature, best_thres))
       # print("feature {0}, best_threshold {1}".format(best_feature, best_thres))
+
+    # If data is not numerical (categorical)
     else:
       conditional_ent = conditional_entropy_categorical(data, class_column, feature)
       # print("conditional_ent {0}".format(conditional_ent))
@@ -312,11 +313,29 @@ def best_conditional_entropy(data, class_column, features):
         # best_cond_ent = conditional_ent
         
         best_cond_ent = conditional_ent
-        best_thres = None
+        best_thres = np.unique(X)
         best_feature = feature
         is_categorical = True
       # print("Not numerical")
   return best_feature, best_thres, is_categorical
+  
+
+
+
+
+def predict_point(tree, point):
+  if (tree.is_leaf):
+    return tree.prediction
+  i = tree.feature
+  if tree.is_feature_categorical:
+    categories = tree.threshold
+    category = np.where(category == point[i])
+    predict(tree.leaves[category, point])
+  else:
+    if (point[i] < tree.threshold):
+      return (predict_point(tree.leaves[0], point))
+    else:
+      return (predict_point(tree.leaves[1], point))
   
 train_decision_tree(np_wine)
   
